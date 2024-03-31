@@ -28,15 +28,11 @@ public class Game {
         return GuessCount;
     }
 
-    public void incCount() {
+    private void incCount() {
         GuessCount++;
     }
 
     public int getNumberToGuess() {
         return NumberToGuess;
-    }
-
-    public void setGuessCount(int guessCount) {
-        GuessCount = guessCount;
     }
 }
