@@ -9,7 +9,7 @@ public abstract class Person implements Cloneable {
         this.age = age;
     }
 
-    public void info() {
+    public void printInfo() {
         System.out.println("First name: " + fullName.getFirstName() + ", Last name: " + fullName.getLastName() + ", Age: " + age);
     }
 
@@ -34,7 +34,7 @@ public abstract class Person implements Cloneable {
     @Override
     public Person clone() throws CloneNotSupportedException {
         Person clonedPerson = (Person) super.clone();
-        clonedPerson.fullName = (FullName) this.fullName.clone();
+        clonedPerson.fullName = this.fullName.clone();
         return clonedPerson;
     }
 }

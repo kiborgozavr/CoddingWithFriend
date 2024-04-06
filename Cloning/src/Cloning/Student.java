@@ -15,15 +15,14 @@ public class Student extends Person implements Cloneable {
     }
 
     @Override
-    public void info() {
+    public void printInfo() {
         System.out.println("First name: " + getFullName().getFirstName() + ", Last name: " + getFullName().getLastName() + ", Age: " + getAge() + ", Course: " + course);
     }
 
     @Override
     public Student clone() {
         try {
-            Student clonedStudent = (Student) super.clone();
-            return clonedStudent;
+            return (Student) super.clone();
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
