@@ -1,4 +1,4 @@
-package main;
+package main.div;
 
 import java.util.Scanner;
 
