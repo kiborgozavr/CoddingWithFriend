@@ -6,36 +6,34 @@ import java.io.IOException;
 import java.net.Socket;
 
 public class ClientTest {
-    private static final int MAX_LENGTH = 5;
     private static final char[] CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
-
+    private static final int MAX_LENGTH = 5;
     private static volatile boolean passwordFound = false;
-    public static String finalPassword = "";
+
 
     public static void main(String[] args) {
-        String serverAddress = "127.0.0.1";
-        int serverPort = 34522;
+        String serverAddress = args[0];
+        int serverPort = Integer.parseInt(args[1]);
 
         try (Socket socket = new Socket(serverAddress, serverPort);
              DataInputStream input = new DataInputStream(socket.getInputStream());
-             DataOutputStream output = new DataOutputStream(socket.getOutputStream());
+             DataOutputStream output = new DataOutputStream(socket.getOutputStream())
         ) {
             try {
                 crackPassword(input, output);
-
-                System.out.println("Пароль: " + finalPassword);
             } catch (IOException e) {
-                System.out.println(e.getMessage());
+                System.out.println("Exception:" + e.getMessage() + " " + e.getClass().getSimpleName());
             }
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("Connection to server exception:" + e.getMessage());
         }
     }
 
     public static void crackPassword(DataInputStream input, DataOutputStream output) throws IOException {
         for (int length = 1; length <= MAX_LENGTH; length++) {
             crackPasswordRecursive("", length, input, output);
-            if (passwordFound) {
+            if (passwordFound)
+            {
                 break;
             }
         }
@@ -45,17 +43,19 @@ public class ClientTest {
         if (findPassword.length() == length) {
             output.writeUTF(findPassword);
             String response = input.readUTF();
-            if (response.equals("success!")) {
-                System.out.println("Пароль: " + findPassword);
-                finalPassword = findPassword;
+            if (response.equals("Connection success!")) {
+                System.out.println(findPassword);
+                System.out.println("pass");
                 passwordFound = true;
             }
-        } else {
-            if (passwordFound) {
-                return;
-            }
+        }
+        else {
             for (char c : CHARACTERS) {
                 crackPasswordRecursive(findPassword + c, length, input, output);
+                if (passwordFound)
+                {
+                    break;
+                }
             }
         }
     }
