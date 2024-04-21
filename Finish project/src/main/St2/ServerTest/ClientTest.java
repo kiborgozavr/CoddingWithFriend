@@ -20,7 +20,7 @@ public class ClientTest {
              DataOutputStream output = new DataOutputStream(socket.getOutputStream())
         ) {
             try {
-                crackPassword(input, output);
+                crackPasswordLoop(input, output);
             } catch (IOException e) {
                 System.out.println("Exception:" + e.getMessage() + " " + e.getClass().getSimpleName());
             }
@@ -29,34 +29,71 @@ public class ClientTest {
         }
     }
 
-    public static void crackPassword(DataInputStream input, DataOutputStream output) throws IOException {
+    public static void crackPasswordLoop(DataInputStream input, DataOutputStream output) throws IOException {
         for (int length = 1; length <= MAX_LENGTH; length++) {
-            crackPasswordRecursive("", length, input, output);
-            if (passwordFound)
+            StringBuilder builder = new StringBuilder();
+            if (checkPasswordRecursive(0, builder, input, output, length))
             {
+                System.out.println(builder.toString());
                 break;
             }
         }
     }
 
-    private static void crackPasswordRecursive(String findPassword, int length, DataInputStream input, DataOutputStream output) throws IOException {
+    public static boolean checkPasswordRecursive(int i, StringBuilder passwordAttempt, DataInputStream input, DataOutputStream output, int length) throws IOException
+    {
+        passwordAttempt.append("a");
+        for (char c : CHARACTERS) {
+            passwordAttempt.setCharAt(i, c);
+            if (passwordAttempt.length() != length) {
+                if (checkPasswordRecursive(i + 1, passwordAttempt, input, output, length)) {
+                    return true;
+                }
+            } else {
+                if (checkPassword(passwordAttempt.toString(), input, output)) {
+                    return true;
+                }
+            }
+        }
+        passwordAttempt.deleteCharAt(i);
+        return false;
+    }
+
+    public static  boolean checkPassword(String password, DataInputStream input, DataOutputStream output) throws IOException
+    {
+        output.writeUTF(password);
+        String response = input.readUTF();
+        if (response.equals("Connection success!")) {
+            return true;
+        }
+        return false;
+    }
+
+    public static void crackPassword(DataInputStream input, DataOutputStream output) throws IOException {
+        for (int length = 1; length <= MAX_LENGTH; length++) {
+            if (crackPasswordRecursive("", length, input, output)) {
+                break;
+            }
+        }
+    }
+
+    private static boolean crackPasswordRecursive(String findPassword, int length, DataInputStream input, DataOutputStream output) throws IOException {
         if (findPassword.length() == length) {
             output.writeUTF(findPassword);
             String response = input.readUTF();
             if (response.equals("Connection success!")) {
                 System.out.println(findPassword);
-                System.out.println("pass");
-                passwordFound = true;
+                return true;
             }
-        }
-        else {
+            return false;
+        } else {
             for (char c : CHARACTERS) {
-                crackPasswordRecursive(findPassword + c, length, input, output);
-                if (passwordFound)
+                if (crackPasswordRecursive(findPassword + c, length, input, output))
                 {
-                    break;
+                    return true;
                 }
             }
+            return false;
         }
     }
 }
