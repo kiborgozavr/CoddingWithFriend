@@ -67,7 +67,7 @@ class WithListInPlaceRemoveDumb extends DuplicatesRemover {
         list.addAll(newList);
     }
 }
-
+@SuppressWarnings("unused")
 class WithListInPlaceRemoveIterators extends DuplicatesRemover {
     @Override
     public void remove(ArrayList<Integer> list) {
