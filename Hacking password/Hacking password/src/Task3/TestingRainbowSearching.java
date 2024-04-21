@@ -4,89 +4,90 @@ import java.io.*;
 
 public class TestingRainbowSearching {
 
-    public static boolean is_password_found = false;
-    public static final String PATTERN = "(\\w)";
+    public static final String DICTIONARY_FILE_PATH = "passwords.txt";
+    public static final String REAL_PASSWORD = "AbCDeF";
+
+    public static boolean isPasswordFound = false;
 
     public static void main(String[] args) {
-        String realPassword = "AbCDeF";
-
         try {
-            checkRainbowTable(realPassword);
-            System.out.println(is_password_found);
-        } catch (IOException e) {
+            checkRainbowTable();
+        }
+        catch (FileNotFoundException e) {
+            System.out.println("File not found: " + e.getMessage());
+        }
+        catch (IOException e) {
             System.out.println("Error");
         }
 
     }
 
-    public static void checkRainbowTable(String realPassword) throws IOException {
-        String dictionaryFilePath = "D:/0 КАТЯ/ОБУЧЕНИЕ JAVA/ВСЯКИЕ ПРОГИ/Программирование с Сергеем/CoddingWithFriend/Hacking password/Hacking password/passwords.txt";
-        try (BufferedReader reader = new BufferedReader(new FileReader(dictionaryFilePath))) {
-            String password;
-            while ((password = reader.readLine()) != null) {
 
-                char[] arrayForWord = password.toLowerCase().toCharArray();
+
+    public static void checkRainbowTable() throws IOException {
+        try (FileReader fileReader = new FileReader(DICTIONARY_FILE_PATH);
+             BufferedReader reader = new BufferedReader(fileReader)
+        ) {
+            String dictionaryPassword;
+            while ((dictionaryPassword = reader.readLine()) != null) {
+
+                char[] dictionaryPasswordArray = dictionaryPassword.toLowerCase().toCharArray();
 
                 int cycle = 0;
-                int lengthOfPassword = arrayForWord.length;
 
-                findCaseRecursive(arrayForWord, cycle, lengthOfPassword, realPassword);
-                if (is_password_found) {
+                checkAllCasesRecursive(dictionaryPasswordArray, cycle);
+                if (isPasswordFound) {
                     break;
                 }
             }
         }
     }
 
-    private static void findCaseRecursive(char[] arrayForWord, int cycle, int lengthOfPassword, String realPassword) {
-        if (is_password_found) {
+    private static void checkAllCasesRecursive(char[] passwordGuess, int cycle) {
+        if (isPasswordFound) {
             return;
         }
-        if (cycle == lengthOfPassword - 1) {
-            is_password_found = checkPassword(arrayForWord, realPassword);
-            if (is_password_found) {
-                System.out.println("Password found: " + new String(arrayForWord));
+        if (cycle == passwordGuess.length - 1) {
+            isPasswordFound = isPasswordCorrect(passwordGuess);
+            if (isPasswordFound) {
+                System.out.println("Password found: " + new String(passwordGuess));
             } else {
-                arrayForWord = makeUpperCase(arrayForWord, cycle);
-                is_password_found = checkPassword(arrayForWord, realPassword);
-                if (is_password_found) {
-                    System.out.println("Password found: " + new String(arrayForWord));
+                makeCharUpperCase(passwordGuess, cycle);
+                isPasswordFound = isPasswordCorrect(passwordGuess);
+                if (isPasswordFound) {
+                    System.out.println("Password found: " + new String(passwordGuess));
                     return;
                 }
-                arrayForWord = makeLowerCase(arrayForWord, cycle);
+                makeCharLowerCase(passwordGuess, cycle);
 
             }
         } else {
-            findCaseRecursive(arrayForWord, cycle+1, lengthOfPassword, realPassword);
+            checkAllCasesRecursive(passwordGuess, cycle+1);
 
-            arrayForWord = makeUpperCase(arrayForWord, cycle);
-            findCaseRecursive(arrayForWord, cycle+1, lengthOfPassword, realPassword);
-            arrayForWord = makeLowerCase(arrayForWord, cycle);
+            makeCharUpperCase(passwordGuess, cycle);
+            checkAllCasesRecursive(passwordGuess, cycle+1);
+            makeCharLowerCase(passwordGuess, cycle);
 
         }
     }
 
-    private static boolean checkPassword(char[] arrayForWord, String realPassword) {
-        String temp = new String(arrayForWord);
-        return (temp.equals(realPassword));
+    private static boolean isPasswordCorrect(char[] dictionaryPassword) {
+        String passwordString = new String(dictionaryPassword);
+        return (passwordString.equals(REAL_PASSWORD));
     }
 
-    private static char[] makeUpperCase(char[] arrayForWord, int cycle) {
-        char tempChar = arrayForWord[cycle];
-        if (String.valueOf(tempChar).matches(PATTERN)) {
-            arrayForWord[cycle] = (Character.toUpperCase(tempChar));
-            return arrayForWord;
+    private static void makeCharUpperCase(char[] charArray, int charIndex) {
+        char targetChar = charArray[charIndex];
+        if (Character.isLetter(targetChar)) {
+            charArray[charIndex] = (Character.toUpperCase(targetChar));
         }
-        return arrayForWord;
     }
 
-    private static char[] makeLowerCase(char[] arrayForWord, int cycle) {
-        char tempChar = arrayForWord[cycle];
-        if (String.valueOf(tempChar).matches(PATTERN)) {
-            arrayForWord[cycle] = (Character.toLowerCase(tempChar));
-            return arrayForWord;
+    private static void makeCharLowerCase(char[] charArray, int charIndex) {
+        char targetChar = charArray[charIndex];
+        if (Character.isLetter(targetChar)) {
+            charArray[charIndex] = (Character.toLowerCase(targetChar));
         }
-        return arrayForWord;
     }
 
 }
