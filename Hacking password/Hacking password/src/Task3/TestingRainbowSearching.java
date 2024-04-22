@@ -6,22 +6,20 @@ public class TestingRainbowSearching {
 
     public static final String DICTIONARY_FILE_PATH = "passwords.txt";
     public static final String REAL_PASSWORD = "AbCDeF";
+    public static  String findPassword = "";
 
     public static boolean isPasswordFound = false;
 
     public static void main(String[] args) {
         try {
             checkRainbowTable();
-        }
-        catch (FileNotFoundException e) {
+            System.out.println("Password is: " + findPassword);
+        } catch (FileNotFoundException e) {
             System.out.println("File not found: " + e.getMessage());
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             System.out.println("Error");
         }
-
     }
-
 
 
     public static void checkRainbowTable() throws IOException {
@@ -50,24 +48,22 @@ public class TestingRainbowSearching {
         if (cycle == passwordGuess.length - 1) {
             isPasswordFound = isPasswordCorrect(passwordGuess);
             if (isPasswordFound) {
-                System.out.println("Password found: " + new String(passwordGuess));
+                findPassword = new String(passwordGuess);
             } else {
                 makeCharUpperCase(passwordGuess, cycle);
                 isPasswordFound = isPasswordCorrect(passwordGuess);
                 if (isPasswordFound) {
-                    System.out.println("Password found: " + new String(passwordGuess));
+                    findPassword = new String(passwordGuess);
                     return;
                 }
                 makeCharLowerCase(passwordGuess, cycle);
-
             }
         } else {
-            checkAllCasesRecursive(passwordGuess, cycle+1);
+            checkAllCasesRecursive(passwordGuess, cycle + 1);
 
             makeCharUpperCase(passwordGuess, cycle);
-            checkAllCasesRecursive(passwordGuess, cycle+1);
+            checkAllCasesRecursive(passwordGuess, cycle + 1);
             makeCharLowerCase(passwordGuess, cycle);
-
         }
     }
 
@@ -89,5 +85,4 @@ public class TestingRainbowSearching {
             charArray[charIndex] = (Character.toLowerCase(targetChar));
         }
     }
-
 }
