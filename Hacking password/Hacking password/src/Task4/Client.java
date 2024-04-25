@@ -12,25 +12,99 @@ public class Client {
 
 
     private static final int MAX_LENGTH = 5;
-    private static boolean isPasswordFound = false;
+    private static ServerSession currentSession;
+
+    static class ServerSession implements AutoCloseable {
+        static class ServerAnswer {
+            public String result;
+            public static ServerAnswer fromJson(String jsonString) {
+                Gson gson = new Gson();
+                return gson.fromJson(jsonString, ServerAnswer.class);
+            }
+        }
+
+        private static class AccessData {
+            private String login;
+            private String password;
+
+            public AccessData(String login, String password) {
+                this.login = login;
+                this.password = password;
+            }
+
+            public String toJson() {
+                Gson gson = new Gson();
+                return gson.toJson(this);
+            }
+        }
+
+        private String login;
+        private String password;
+        private Socket socket;
+        private DataInputStream input;
+        private DataOutputStream output;
+
+        ServerSession(String serverAddress, int serverPort) throws IOException
+        {
+            socket = new Socket(serverAddress, serverPort);
+            input = new DataInputStream(socket.getInputStream());
+            output = new DataOutputStream(socket.getOutputStream());
+        }
+        public void setLogin(String login) {
+            this.login = login;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public String getLogin() {
+            return login;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public ServerAnswer tryAuthorize() throws IOException {
+            AccessData data = new AccessData(this.login, this.password);
+            output.writeUTF(data.toJson());
+
+            String serverResponse = input.readUTF();
+            return ServerAnswer.fromJson(serverResponse);
+        }
+
+        @Override
+        public void close() throws IOException {
+            input.close();
+            output.close();
+            socket.close();
+
+        }
+    }
 
     public static void main(String[] args) {
-        String serverAddress = "127.0.0.1";
-        int serverPort = 34522;
+        final String serverAddress = "127.0.0.1";
+        final int serverPort = 34522;
 
-
-        try (Socket socket = new Socket(serverAddress, serverPort);
-             DataInputStream input = new DataInputStream(socket.getInputStream());
-             DataOutputStream output = new DataOutputStream(socket.getOutputStream())
-        ) {
+        try (ServerSession session = new ServerSession(serverAddress, serverPort)){
+            currentSession = session;
             try {
                 long startTime = System.currentTimeMillis();
-                findCorrectLogin(input, output); // looking for correct login
-                checkRainbowTable(input, output); // looking for correct password by checking rainbow table
-                crackPasswordBruteForce(input, output); // looking for correct password by brute force
+                PasswordFindResult result = PasswordFindResult.notFound();
+                String foundLogin = findLoginDictionary(DICTIONARY_LOGINS_FILE_PATH);
+                currentSession.setLogin(foundLogin);
+                if (currentSession.getLogin() != null) {
+                    // Before brute forcing (slow) check the common passwords from the rainbow table (faster).
+                    result = findPasswordRainbowTable(DICTIONARY_PASSWORDS_FILE_PATH);
+                    if (!result.isFound) {
+                        result = findPasswordBruteForce(CHARACTERS, MAX_LENGTH);
+                    }
+                    currentSession.setPassword(result.password);
+                }
 
-                System.out.println("The login is: " + AccessData.findLogin);
-                System.out.println("The password is: " + AccessData.findPassword);
+                System.out.println("The login is: " + currentSession.getLogin());
+                System.out.println("The password is: " + currentSession.getPassword());
                 long endTime = System.currentTimeMillis();
 
                 System.out.println("Time: " + (endTime - startTime)/1000 + " s");
@@ -43,36 +117,38 @@ public class Client {
         }
     }
 
-    private static void findCorrectLogin(DataInputStream input, DataOutputStream output) throws IOException {
-        try (FileReader fileReader = new FileReader(DICTIONARY_LOGINS_FILE_PATH);
+    private static String findLoginDictionary(String dictionaryFilePath) throws IOException {
+        try (FileReader fileReader = new FileReader(dictionaryFilePath);
              BufferedReader reader = new BufferedReader(fileReader)
         ) {
             String dictionaryLogin;
             while ((dictionaryLogin = reader.readLine()) != null) {
 
-                boolean isCorrectLoginFind = isLoginCorrect(dictionaryLogin, input, output);
+                boolean isCorrectLoginFind = isLoginCorrect(dictionaryLogin);
 
                 if (isCorrectLoginFind) {
-                    break;
+
+                    return dictionaryLogin;
                 }
             }
         }
+        return null;
     }
 
-    private static boolean isLoginCorrect(String loginFromTable, DataInputStream input, DataOutputStream output) throws IOException {
-        AccessData accessData = new AccessData(loginFromTable, "&");
+    private static boolean isLoginCorrect(String loginFromTable) throws IOException {
+        currentSession.setLogin(loginFromTable);
+        currentSession.setPassword("&");
 
-        ServerAnswer response = sendingJsonAccessData(accessData, input, output);
+        ServerSession.ServerAnswer response = currentSession.tryAuthorize();
 
         if (response.result.equals("Wrong password!")) {
-            AccessData.findLogin = loginFromTable;
             return true;
         }
         return false;
     }
 
-    private static void checkRainbowTable(DataInputStream input, DataOutputStream output) throws IOException {
-        try (FileReader fileReader = new FileReader(DICTIONARY_PASSWORDS_FILE_PATH);
+    private static PasswordFindResult findPasswordRainbowTable(String tableFilePath) throws IOException {
+        try (FileReader fileReader = new FileReader(tableFilePath);
              BufferedReader reader = new BufferedReader(fileReader)
         ) {
             String dictionaryPassword;
@@ -82,48 +158,64 @@ public class Client {
 
                 int cycle = 0;
 
-                checkAllCasesRecursive(dictionaryPasswordArray, cycle, input, output);
-                if (isPasswordFound) {
-                    break;
+                PasswordFindResult result = checkAllCasesRecursive(dictionaryPasswordArray, cycle);
+                if (result.isFound) {
+                    return result;
                 }
             }
         }
+        return PasswordFindResult.notFound();
     }
 
-    private static void checkAllCasesRecursive(char[] passwordGuess, int cycle, DataInputStream input, DataOutputStream output) throws IOException {
-        if (isPasswordFound) {
-            return;
+    static class PasswordFindResult {
+        public String password;
+        public boolean isFound;
+        PasswordFindResult(String password, boolean isFound)
+        {
+            this.password = password;
+            this.isFound = isFound;
         }
+        public static PasswordFindResult notFound() {
+            return new PasswordFindResult(null, false);
+        }
+    }
+
+    private static PasswordFindResult checkAllCasesRecursive(char[] passwordGuess, int cycle) throws IOException {
         if (cycle == passwordGuess.length - 1) {
-            isPasswordFound = isPasswordCorrect(passwordGuess, input, output);
-            if (isPasswordFound) {
-                AccessData.findPassword = new String(passwordGuess);
+            boolean isFound = isPasswordCorrect(new String(passwordGuess));
+            if (isFound) {
+                return new PasswordFindResult(new String(passwordGuess), true);
             } else {
                 makeCharUpperCase(passwordGuess, cycle);
-                isPasswordFound = isPasswordCorrect(passwordGuess, input, output);
-                if (isPasswordFound) {
-                    AccessData.findPassword = new String(passwordGuess);
-                    return;
+                isFound = isPasswordCorrect(new String(passwordGuess));
+                if (isFound) {
+                    return new PasswordFindResult(new String(passwordGuess), true);
                 }
                 makeCharLowerCase(passwordGuess, cycle);
             }
         } else {
-            checkAllCasesRecursive(passwordGuess, cycle + 1, input, output);
+            PasswordFindResult result = checkAllCasesRecursive(passwordGuess, cycle + 1);
+            if (result.isFound) {
+                return result;
+            }
 
             makeCharUpperCase(passwordGuess, cycle);
-            checkAllCasesRecursive(passwordGuess, cycle + 1, input, output);
+            result = checkAllCasesRecursive(passwordGuess, cycle + 1);
+            if (result.isFound) {
+                return result;
+            }
             makeCharLowerCase(passwordGuess, cycle);
         }
+        return PasswordFindResult.notFound();
     }
 
-    private static boolean isPasswordCorrect(char[] arrayForWord, DataInputStream input, DataOutputStream output) throws IOException {
-        String passwordString = new String(arrayForWord);
-        AccessData accessData = new AccessData(AccessData.findLogin, passwordString);
-        ServerAnswer serverAnswer = sendingJsonAccessData(accessData, input, output);
+    private static boolean isPasswordCorrect(String password) throws IOException {
+        // login was set previously
+        currentSession.setPassword(password);
+
+        ServerSession.ServerAnswer serverAnswer = currentSession.tryAuthorize();
 
         if (serverAnswer.result.equals("Connection success!")) {
-            AccessData.findPassword = passwordString;
-            isPasswordFound = true;
             return true;
         }
         return false;
@@ -144,89 +236,33 @@ public class Client {
     }
 
 
-    private static void crackPasswordBruteForce(DataInputStream input, DataOutputStream output) throws IOException {
-        for (int length = 1; length <= MAX_LENGTH; length++) {
-            crackPasswordRecursive("", length, input, output);
-            if (isPasswordFound) {
-                break;
+    private static PasswordFindResult findPasswordBruteForce(char[] possibleCharacters, int maxLength) throws IOException {
+        for (int length = 1; length <= maxLength; length++) {
+            PasswordFindResult result = crackPasswordRecursive("", possibleCharacters, length);
+            if (result.isFound) {
+                return result;
             }
         }
+        return PasswordFindResult.notFound();
     }
 
-    private static void crackPasswordRecursive(String findPassword, int length, DataInputStream input, DataOutputStream output) throws IOException {
+    private static PasswordFindResult crackPasswordRecursive(String findPassword, char[] possibleCharacters, int length) throws IOException {
         if (findPassword.length() == length) {
-            AccessData accessData = new AccessData(AccessData.findLogin, findPassword);
-            ServerAnswer serverAnswer = sendingJsonAccessData(accessData, input, output);
-            if (serverAnswer.result.equals("Connection success!")) {
-                AccessData.findPassword = findPassword;
-                isPasswordFound = true;
+            if (isPasswordCorrect(findPassword)) {
+                return new PasswordFindResult(findPassword, true);
             }
         } else {
-            for (char c : CHARACTERS) {
-                crackPasswordRecursive(findPassword + c, length, input, output);
-                if (isPasswordFound) {
-                    break;
+            for (char c : possibleCharacters) {
+                PasswordFindResult result = crackPasswordRecursive(findPassword + c, possibleCharacters, length);
+                if (result.isFound) {
+                    return result;
                 }
             }
         }
+        return PasswordFindResult.notFound();
     }
 
-    private static ServerAnswer sendingJsonAccessData(AccessData LoginAndPassword, DataInputStream input, DataOutputStream output) throws IOException {
-        Gson gson = new Gson();
-        String jsonLoginAndPassword = gson.toJson(LoginAndPassword);
-        output.writeUTF(jsonLoginAndPassword);
 
-        String serverResponse = input.readUTF();
-        return gson.fromJson(serverResponse, ServerAnswer.class);
-    }
 
-    static class ServerAnswer {
-        public String result;
-    }
 
-    static class AccessData {
-        public static String findLogin;
-        public static String findPassword;
-
-        String login;
-        String password;
-
-        public AccessData(String login, String password) {
-            this.login = login;
-            this.password = password;
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////
-    private static void pickingPassword(DataInputStream input, DataOutputStream output) throws IOException {
-        AccessData accessData = new AccessData(AccessData.findLogin, "");
-
-        StringBuilder passwordKnownPart = new StringBuilder();
-
-        boolean isPasswordFound = false;
-        while (!isPasswordFound) {
-
-            for (char character : CHARACTERS) {
-
-                String passwordForCheck = passwordKnownPart.toString() + character;
-                accessData.password = passwordForCheck;
-
-                long startTime = System.currentTimeMillis();
-
-                ServerAnswer response = sendingJsonAccessData(accessData, input, output);
-
-                long endTime = System.currentTimeMillis();
-                long currentResponseTime = endTime - startTime;
-
-                if (response.result.equals("Connection success!")) {
-                    AccessData.findPassword = passwordForCheck;
-                    isPasswordFound = true;
-                    break;
-                } else if (currentResponseTime >= 2) {
-                    passwordKnownPart.append(character);
-                    break;
-                }
-            }
-        }
-    }
 }
